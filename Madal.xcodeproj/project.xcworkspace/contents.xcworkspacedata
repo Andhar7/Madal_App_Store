@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Workspace
+   version = "1.0">
+   <FileRef
+      location = "self:">
+   </FileRef>
+   <FileRef
+      location = "group:OpeningPageView_Fixed.swift">
+   </FileRef>
+   <FileRef
+      location = "group:WebsitePageView_Fixed.swift">
+   </FileRef>
+   <FileRef
+      location = "group:SIMPLE_FIX_INSTRUCTIONS.md">
+   </FileRef>
+   <FileRef
+      location = "group:COMPLETED.md">
+   </FileRef>
+</Workspace>
