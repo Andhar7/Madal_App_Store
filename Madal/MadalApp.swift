@@ -9,22 +9,22 @@ import SwiftUI
 
 @main
 struct MadalApp: App {
-    
+
     let persistenceController = PersistenceController.shared
-    
+
     @Environment(\.scenePhase) var scenePhase
-    
+
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environment(\.managedObjectContext, persistenceController.container.viewContext)
                 .onAppear {
+                    #if os(iOS)
                     UserDefaults.standard.setValue(false, forKey: "_UIConstraintBasedLayoutLogUnsatisfiable")
+                    #endif
                 }
-                .onChange(of: scenePhase) { (newScenePhase) in
-                    
-                    switch newScenePhase{
-                        
+                .onChange(of: scenePhase) { newScenePhase in
+                    switch newScenePhase {
                     case .background:
                         print("background")
                         persistenceController.saveContext()

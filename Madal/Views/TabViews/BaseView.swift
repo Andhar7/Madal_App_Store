@@ -7,6 +7,8 @@
 
 import SwiftUI
 
+// BaseView uses UIKit APIs not available on macOS — compile iOS only
+#if os(iOS)
 struct BaseView: View {
     
     @State var showMenu : Bool = false
@@ -186,16 +188,16 @@ struct BaseView_Previews: PreviewProvider {
 }
 
 extension BaseView {
-    
+
     @ViewBuilder
     func CustomTabButton(imageName: String) -> some View {
-        
+
         Button(action: {
             withAnimation(.spring()){
                 currentTab = imageName
             }
         }, label: {
-            
+
             Image(systemName: imageName)
                 .imageScale(.large)
                 .foregroundColor(currentTab == imageName ? Color("Delight") : Color("Consciousness"))
@@ -203,3 +205,4 @@ extension BaseView {
         })
     }
 }
+#endif

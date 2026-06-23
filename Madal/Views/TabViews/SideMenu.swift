@@ -111,7 +111,10 @@ extension View {
     }
     
     func getRect() -> CGRect {
-        
+        #if os(iOS)
         return UIScreen.main.bounds
+        #else
+        return NSScreen.main?.frame ?? CGRect(x: 0, y: 0, width: 800, height: 600)
+        #endif
     }
 }

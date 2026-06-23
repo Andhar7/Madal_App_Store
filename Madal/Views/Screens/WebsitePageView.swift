@@ -10,75 +10,126 @@ import WebKit
 import Network
 
 struct WebsitePageView: View {
-    
-    let id : String
-    let url : String
-    let image : String
-    let category : String
-    
-    @State var showMenu : Bool = false
-    @State var isFavourite : Bool = false
+
+    let id: String
+    let url: String
+    let image: String
+    let category: String
+
+    // macOS: called when the user taps the back button in the toolbar.
+    // OpeningPageView sets this to `{ selectedSite = nil }` so the detail
+    // column returns to the category list. iOS ignores it (uses its own back).
+    var onDismiss: (() -> Void)? = nil
+
+    @State var showMenu: Bool = false
+    @State var isFavourite: Bool = false
     @StateObject private var networkMonitor = WebPageNetworkMonitor()
-    
+    #if os(macOS)
+    @StateObject private var webNav = WebNavigation()
+    #endif
+
     @Environment(\.presentationMode) var dismiss
-    
     @Environment(\.managedObjectContext) var context
-    
+
     @FetchRequest(entity: All.entity(), sortDescriptors: [])
-    var favourite : FetchedResults<All>
-    
+    var favourite: FetchedResults<All>
+
     var body: some View {
-        
+
+        // DragGesture is cross-platform — only used on iOS
         let dragGesture = DragGesture()
-        
             .onEnded({
                 if $0.translation.width < -100 {
-                    withAnimation(.easeIn(duration: 0.8)){
-                        showMenu.toggle()
-                    }
+                    withAnimation(.easeIn(duration: 0.8)) { showMenu.toggle() }
                 }
             })
-        
+
+        #if os(macOS)
+        // ── macOS: Full-screen web view, toolbar handles all navigation ─
+        ZStack {
+            // Base layer — ensures the detail column is always dark blue,
+            // not black, even during the brief moment before the page loads.
+            Color("Unity").ignoresSafeArea()
+
+            if networkMonitor.isConnected {
+                WebView(urlString: url, webNav: webNav)
+            } else {
+                VStack(spacing: 25) {
+                    Image(systemName: "wifi.slash")
+                        .font(.system(size: 70))
+                        .foregroundColor(.white.opacity(0.8))
+                    Text("No Internet Connection")
+                        .font(.system(size: 24, weight: .medium, design: .serif))
+                        .foregroundColor(.white)
+                }
+            }
+        }
+        .toolbar {
+            // ← Category — returns to the category list
+            ToolbarItem(placement: .navigation) {
+                Button(action: { onDismiss?() }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                        Text(category)
+                    }
+                }
+            }
+            // ⬅ ➡ — web history back / forward within the current website
+            ToolbarItem(placement: .navigation) {
+                HStack(spacing: 2) {
+                    Button(action: { webNav.goBack() }) {
+                        Image(systemName: "chevron.backward")
+                    }
+                    .disabled(!webNav.canGoBack)
+
+                    Button(action: { webNav.goForward() }) {
+                        Image(systemName: "chevron.forward")
+                    }
+                    .disabled(!webNav.canGoForward)
+                }
+            }
+            // ★ — favourite toggle
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: { toggleFavourite() }) {
+                    Image(systemName: isFavourite ? "star.fill" : "star")
+                        .imageScale(.large)
+                }
+            }
+        }
+        .navigationTitle(id)
+        .onAppear { checkIfFavourite() }
+
+        #else
+        // ── iOS / iPadOS: Slide-out menu approach ───────────────────────
         GeometryReader { geo in
-            
             ZStack(alignment: .leading) {
-                
-                // Network check
                 if networkMonitor.isConnected {
                     WebView(urlString: url)
                         .frame(width: geo.size.width, height: geo.size.height)
                         .offset(x: showMenu ? geo.size.width / 2 : 0)
-                        .disabled(showMenu ? true : false)
+                        .disabled(showMenu)
                         .background(Color("Unity"))
-                    
+
                     if showMenu {
-                        
                         MenuView()
                             .frame(width: geo.size.width / 2)
                     }
                 } else {
-                    // No internet screen
                     ZStack {
-                        Color(red: 0.1, green: 0.1, blue: 0.3)
-                            .ignoresSafeArea()
-                        
+                        Color(red: 0.1, green: 0.1, blue: 0.3).ignoresSafeArea()
                         VStack(spacing: 25) {
-                            
                             Image(systemName: "wifi.slash")
                                 .font(.system(size: 70))
                                 .foregroundColor(.white.opacity(0.8))
-                            
                             Text("No Internet Connection")
                                 .font(.system(size: 24, weight: .medium, design: .serif))
                                 .foregroundColor(.white)
                                 .multilineTextAlignment(.center)
-                            
                             Text("Please check your internet\nconnection and try again.")
                                 .font(.system(size: 16, weight: .regular, design: .serif))
                                 .foregroundColor(.white.opacity(0.7))
                                 .multilineTextAlignment(.center)
                                 .padding(.horizontal)
-                            
                             ProgressView()
                                 .progressViewStyle(CircularProgressViewStyle(tint: .white))
                                 .scaleEffect(1.2)
@@ -90,100 +141,57 @@ struct WebsitePageView: View {
             .gesture(dragGesture)
         }
         .toolbar {
-            
-            ToolbarItemGroup(placement: .navigationBarLeading, content: {
-                
-                Button(action: {
-                    dismiss.wrappedValue.dismiss()
-                }, label: {
+            ToolbarItemGroup(placement: .navigation, content: {
+                Button(action: { dismiss.wrappedValue.dismiss() }) {
                     HStack {
                         Image(systemName: "chevron.left")
                             .imageScale(.large)
                             .foregroundColor(.white)
                         Text(category)
-                         .font(.system(size: 21, weight: .regular, design: .serif))
-                         .kerning(2.4)
-                         .foregroundColor(.white)
+                            .font(.system(size: 21, weight: .regular, design: .serif))
+                            .kerning(2.4)
+                            .foregroundColor(.white)
                     }
-                })
+                }
             })
         }
         .toolbar {
-            
-            ToolbarItemGroup(placement: .navigationBarTrailing, content: {
-                
-                Button(action: {
-                    withAnimation{
-                        isFavourite.toggle()
-                    }
-                    
-                    if isFavourite {
-                        let newFavouriteItem = All(context: context)
-                        newFavouriteItem.id = id
-                        newFavouriteItem.url = url
-                        newFavouriteItem.image = image
-                        
-                        do {
-                            
-                            try context.save()
-                            
-                        } catch {
-                            
-                            print(error.localizedDescription)
-                        }
-                        
-                    } else {
-                        
-                        for favouriteItem in favourite {
-                            
-                            if id == favouriteItem.id{
-                                
-                                context.delete(favouriteItem)
-                                
-                                break
-                            }
-                        }
-                        
-                        do {
-                            
-                            try context.save()
-                            
-                        } catch {
-                            
-                            print(error.localizedDescription)
-                        }
-                    }
-                }, label: {
-                    
-                    if isFavourite {
-                        
-                        Image(systemName: "star.fill")
-                            .imageScale(.large)
-                            .foregroundColor(.white)
-                        
-                    } else {
-                        
-                        Image(systemName: "star")
-                            .imageScale(.large)
-                            .foregroundColor(.white)
-                    }
-                })
+            ToolbarItemGroup(placement: .primaryAction, content: {
+                Button(action: { toggleFavourite() }) {
+                    Image(systemName: isFavourite ? "star.fill" : "star")
+                        .imageScale(.large)
+                        .foregroundColor(.white)
+                }
             })
         }
-        .navigationBarTitle("")
+        .navigationTitle("")
         .navigationBarBackButtonHidden(true)
-        .onAppear(perform: {
-            
-            for favouriteItem in favourite {
-                
-                if id == favouriteItem.id{
-                    
-                   isFavourite = true
-                    
-                    break
-                }
+        .onAppear { checkIfFavourite() }
+        #endif
+    }
+
+    // MARK: - Helpers
+
+    private func checkIfFavourite() {
+        for item in favourite {
+            if id == item.id { isFavourite = true; break }
+        }
+    }
+
+    private func toggleFavourite() {
+        withAnimation { isFavourite.toggle() }
+        if isFavourite {
+            let newItem = All(context: context)
+            newItem.id = id
+            newItem.url = url
+            newItem.image = image
+            try? context.save()
+        } else {
+            for item in favourite {
+                if id == item.id { context.delete(item); break }
             }
-        })
+            try? context.save()
+        }
     }
 }
 
@@ -192,7 +200,7 @@ class WebPageNetworkMonitor: ObservableObject {
     @Published var isConnected: Bool = true
     private let monitor = NWPathMonitor()
     private let queue = DispatchQueue(label: "WebPageNetworkMonitor")
-    
+
     init() {
         monitor.pathUpdateHandler = { [weak self] path in
             DispatchQueue.main.async {
@@ -201,14 +209,8 @@ class WebPageNetworkMonitor: ObservableObject {
         }
         monitor.start(queue: queue)
     }
-    
+
     deinit {
         monitor.cancel()
     }
 }
-
-//struct WebsitePageView_Previews: PreviewProvider {
-//    static var previews: some View {
-//        WebsitePageView(id: "Library", url: "https://www.srichinmoylibrary.com", image: "apple", category: "Lybrary")
-//    }
-//}
