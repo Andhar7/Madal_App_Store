@@ -23,7 +23,7 @@ struct MadalApp: App {
                     UserDefaults.standard.setValue(false, forKey: "_UIConstraintBasedLayoutLogUnsatisfiable")
                     #endif
                 }
-                .onChange(of: scenePhase) { newScenePhase in
+                .onChange(of: scenePhase) { _, newScenePhase in
                     switch newScenePhase {
                     case .background:
                         print("background")
